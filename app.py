@@ -40,16 +40,52 @@ def index():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    rows = query_db("SELECT * FROM video_configurations WHERE user_id = ?;", session["user_id"])
+    rows = query_db("""
+        SELECT
+            vc.id,
+            vc.config_name,
+            vc.split_type,
+            vc.video_position,
+            vc.edit_type,
+            vc.original_video_percentage,
+            vc.created_at,
+            CASE 
+                WHEN vc.id = u.default_config_id THEN 1 
+                ELSE 0 
+            END AS is_default
+        FROM 
+            video_configurations vc 
+        JOIN 
+            users u 
+        ON u.id = vc.user_id 
+        WHERE 
+            vc.user_id = ? 
+        ORDER BY 
+            created_at DESC;""", session["user_id"])
     if not rows:
         rows = []
     return render_template("dashboard.html", configs=rows)
 
+@app.route('/config/<string:id>')
+@login_required
+def config(id: str):
+    rows = query_db("SELECT * FROM video_configurations WHERE id = ? AND user_id = ? ;", id, session["user_id"])
+    if not rows:
+        flash("Invalid configuration", "danger")
+        return redirect(url_for("dashboard"))
+
+    gameplays = query_db("SELECT g.title, g.category FROM config_gameplays cg JOIN gameplays g ON cg.gameplay_id = g.id WHERE cg.config_id = ?;", id)
+    return render_template("config.html", config=rows[0], gameplays=gameplays)
+
 @app.route("/default-config", methods=["POST"])
 @login_required
 def default_config():
-    configId = request.form.get("config_id")
+    configId = request.form.get("configId")
     state = request.form.get("state")
+    if not (configId and state):
+        flash("Missing params state or configId", "danger")
+        return redirect(url_for("dashboard"))
+    
     query = """
         UPDATE 
             Users 
@@ -70,8 +106,7 @@ def default_config():
 def new_config():
     """Create video configurations"""
     if request.method == "GET":
-        accounts = query_db("SELECT * FROM ConnectedAccounts WHERE user_id = ?;", session["user_id"])
-        return render_template("new_config.html", accounts=accounts or [])
+        return render_template("new_config.html")
 
     # Ensure the config name was submitted
     if not (request.form.get("configName") and is_valid_input(request.form["configName"])):
@@ -85,28 +120,12 @@ def new_config():
         flash(f"config name '{config_name}' already exists", "danger")
         return redirect(url_for("new_config"))
     
-    post_accounts = request.form.getlist("postAccounts")
-    # Check if all accounts belong to the user
-    acc_count = query_db("SELECT COUNT(id) AS count FROM ConnectedAccounts WHERE id IN (?) AND user_id = ?;", post_accounts, session["user_id"])
-    acc_count = acc_count[0]["count"]
-    
-    if acc_count != len(post_accounts):
-        flash("Invalid post accounts", "danger")
-        return redirect(url_for("new_config"))
+    configId = str(uuid4())
     
     if not request.form.get("splitType"):
-        query_db("BEGIN TRANSACTION")
-        
-        configId = str(uuid4())
         query_db("INSERT INTO video_configurations (id, user_id, config_name, created_at) VALUES (?, ?, ?, ?);", 
             configId, session["user_id"], config_name, datetime.datetime.now()
         )   
-        
-        for account_id in post_accounts:
-            query_db("INSERT INTO video_config_account (config_id, social_account_id) VALUES (?, ?);", configId, account_id) 
-        
-        query_db("COMMIT")
-
         flash("Successfully registered", "success")
         return redirect(url_for("dashboard"))
     
@@ -128,7 +147,7 @@ def new_config():
     # Check for a valid split type
     splitType = request.form["splitType"]
     if splitType not in ["horizontal", "vertical"]:
-        flash("invalid split type", "danger")
+        flash("must provide a valid splitType", "danger")
         return redirect(url_for("new_config"))
     
     # Check for a valid video position
@@ -137,7 +156,7 @@ def new_config():
         if videoPosition not in ["top", "bottom"]:
             flash("invalid videoPosition", "danger")
             return redirect(url_for("new_config"))
-    elif splitType == "vertical":
+    else:
         if videoPosition not in ["left", "right"]:
             flash("invalid videoPosition", "danger")
             return redirect(url_for("new_config"))
@@ -146,10 +165,7 @@ def new_config():
         if not request.form.get("processingOptions"):
             flash("must provid processing options", "danger")
             return redirect(url_for("new_config"))      
-    else:
-        flash("must provide a valid splitType", "danger")
-        return redirect(url_for("new_config"))
-    
+
     # Check split percentage is on range
     videoPercentage = request.form.get("videoPercentage", type=int)
     if not (videoPercentage >= 0 and videoPercentage <= 100):
@@ -157,22 +173,19 @@ def new_config():
         return redirect(url_for("new_config"))
     
     # Check the process type
-    process_option = request.form.get("processingOptions", "crop")
+    process_option = "crop" if splitType == "horizontal" else request.form.get("processingOptions")
     if process_option not in ["crop", "fit"]:
         flash("must provide a valid processing option", "danger")
         return redirect(url_for("new_config"))
     
-    configId = str(uuid4())
-    query_db("BEGIN TRANSACTION")    
+    query_db("BEGIN TRANSACTION")  
+      
     query_db("INSERT INTO video_configurations (id, user_id, config_name, split_type, video_position, original_video_percentage, edit_type, created_at) VALUES (?, ?, ?, ? , ?, ?, ?, ?);", 
         configId, session["user_id"], config_name, splitType, videoPosition, videoPercentage, process_option, datetime.datetime.now()
     )
     for v_id in request.form.getlist("gameplay"):
         query_db("INSERT INTO config_gameplays (config_id, gameplay_id) VALUES (?, ?);", configId, v_id)
-
-    for account_id in post_accounts:
-        query_db("INSERT INTO video_config_account (config_id, social_account_id) VALUES (?, ?);", configId, account_id)
-    
+        
     query_db("COMMIT")
     
     flash("Successfully registered", "success")
@@ -181,8 +194,8 @@ def new_config():
 @app.route("/delete", methods=["POST"])
 @login_required
 def delete_config():
-    configId = request.form.get("config_id")
-    rows = query_db("DELETE FROM video_configurations WHERE id = ? AND user_id = ?;", configId, session["user_id"])
+    config_id = request.form.get("configId")
+    rows = query_db("DELETE FROM video_configurations WHERE id = ? AND user_id = ?;", config_id, session["user_id"])
     if rows:
         flash("Successfully deleted!", "success")
     else:
@@ -194,9 +207,9 @@ def delete_config():
 @login_required
 def settings():
     if request.method == "GET":
-        username = query_db("SELECT ig_username FROM users WHERE id = ?;", session["user_id"])
-        connectedAccounts = query_db("SELECT * FROM ConnectedAccounts WHERE user_id = ?;", session["user_id"])
-        return render_template("settings.html", ig_username=username[0].get("ig_username"), accounts=connectedAccounts)
+        row = query_db("SELECT ig_username FROM users WHERE id = ?;", session["user_id"])
+        username = row[0].get("ig_username")
+        return render_template("settings.html", ig_username=username)
     
     # Ensure instagram username was submitted
     if not request.form.get("igUsername"):
@@ -211,11 +224,11 @@ def settings():
     
     update_row = query_db("UPDATE users SET ig_username = ? WHERE id = ?;", igUsername, session["user_id"])
     if update_row:
-        flash("Successfully updated", "success")
+        flash("Successfully saved IG username", "success")
     else:
         flash("Couldn't save ig_username", "danger")
     
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("settings"))
         
 @app.route("/progress")
 @login_required
@@ -308,260 +321,13 @@ def download(id: str):
     as_attachment = request.args.get("attachment", "false").lower() == "true"
     return send_from_directory(Config.outputDirectory, id + ".mp4",as_attachment=as_attachment, mimetype="video/mp4")
 
-@app.route("/reels/<string:file_name>")
-def video_reels(file_name: str):
-   # Ensure the file exists on disk
-    video_path = os.path.join(Config.outputDirectory, file_name)
-    if not os.path.exists(video_path):
-        abort(404, "File not found")
-    
-    return send_from_directory(Config.outputDirectory, file_name, as_attachment=True)
-
-@app.route("/tiktok/auth")
-@login_required
-def tiktok_authorize():
-    provide_data = Config.tiktokAuth
-    # Generate a random string for the state parameter
-    session["oauth2_tk_state"] = secrets.token_urlsafe(16)
-    
-    # Create a query string with all Oauth2 params
-    qs = urlencode({
-        "client_key": provide_data["clientId"],
-        "redirect_uri": "https://86010cwj-5000.uks1.devtunnels.ms" + url_for("tiktok_callback"),
-        "response_type": "code",
-        "scope": ",".join(provide_data["scopes"]),
-        "state": session["oauth2_tk_state"]
-    })
-    auth_url = provide_data["authUrl"] + "?" + qs
-    return redirect(auth_url)   
-
-@app.route("/tiktok/callback")
-@login_required
-def tiktok_callback():
-    # if there was an authentication error, flash the error messages and exit
-    if 'error' in request.args:
-        for k, v in request.args.items():
-            if k.startswith('error'):
-                flash(f'{k}: {v}', "danger")
-        return redirect(url_for('settings'))
-    
-    if request.args['state'] != session.get('oauth2_tk_state'):
-        flash("invalid request", "danger")
-        return redirect(url_for("settings"))
-    
-    # make sure that the authorization code is present
-    if 'code' not in request.args:
-        flash("invalid request", "danger")
-        return redirect(url_for("settings")) 
-
-    provide_data = Config.tiktokAuth
-    granted_permissions = request.args.get("scopes").split(",")
-    # Ensure the necessary permissions are granted.
-    for scope in provide_data["scopes"]:
-        if scope not in granted_permissions:
-            flash(f"Permission {scope} is required!", "danger")
-            return redirect(url_for("settings"))
- 
-    # exchange the authorization code for an access token
-    response = requests.post(provide_data["tokenUrl"], data={
-        "client_key": provide_data["clientId"],
-        "client_secret": provide_data["clientSecret"],
-        "code": request.args["code"],
-        "grant_type": "authorization_code",
-        "redirect_uri": "https://86010cwj-5000.uks1.devtunnels.ms" + url_for("tiktok_callback") 
-        }, headers={"Accept": "application/json"}
-    )  
-    if not response.ok:
-        flash("Server error, please try again", "danger")
-        return redirect(url_for("settings"))
-    
-    tokenInfo = response.json()
-    access_token = tokenInfo.get("access_token")
-    if not access_token:
-        flash("Server error, please try again", "danger")
-        return redirect(url_for("settings"))
-
-    # Use the access token to get the user's profile
-    response = requests.get(provide_data["userInfoUrl"], params={"fields": "username,open_id"}, headers={
-        'Authorization': 'Bearer ' + access_token,
-        'Accept': 'application/json',
-    })
-    if not response.ok:
-        flash("Server error, please try again", "danger")
-        return redirect(url_for("settings"))
-    
-    user_profile = response.json().get("data", {}).get("user")
-    if not user_profile:
-        flash("Server error, please try again", "danger")
-        return redirect(url_for("settings"))
-    
-    query = """
-        INSERT INTO 
-            ConnectedAccounts 
-        (   
-            user_id,
-            platform,
-            account_id,
-            account_username,
-            account_token,
-            refresh_token,
-            connected_at,
-            token_expires_at,
-            refresh_expires_in
-        ) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-        """
-    added = query_db(
-        query,
-        session["user_id"],
-        "tiktok",
-        user_profile.get("open_id"),
-        user_profile.get("username"),
-        tokenInfo.get("access_token"),
-        tokenInfo.get("refresh_token"),
-        datetime.datetime.now(),
-        datetime.datetime.now() + datetime.timedelta(seconds=tokenInfo.get("expires_in")),
-        datetime.datetime.now() + datetime.timedelta(seconds=tokenInfo.get("refresh_expires_in"))
-    )
-    if not added:
-        flash("Couldn't register account", "danger")
-    else: 
-        flash(f"Account '{user_profile.get('username')}' successfully added", "success")
-    
-    return redirect(url_for("settings")) 
-
-@app.route("/ig/auth")
-@login_required
-def instagram_authorize():
-    """Redirect to instagram auth page"""
-    
-    provide_data = Config.instagramAuth
-    # Generate a random string for the state parameter
-    session["oauth2_ig_state"] = secrets.token_urlsafe(16)
-    
-    # Create a query string with all Oauth2 params
-    qs = urlencode({
-        "client_id": provide_data["clientId"],
-        "enable_fb_login": 0,
-        "force_authentication": 1,
-        "redirect_uri": "https://86010cwj-5000.uks1.devtunnels.ms" + url_for("instagram_callback"),
-        "response_type": "code",
-        "scope": " ".join(provide_data["scopes"]),
-        "state": session["oauth2_ig_state"]
-    })
-    auth_url = provide_data["authUrl"] + "?" + qs
-    return redirect(auth_url)   
-
-@app.route("/ig/callback")
-@login_required
-def instagram_callback():
-    # if there was an authentication error, flash the error messages and exit
-    if 'error' in request.args:
-        for k, v in request.args.items():
-            if k.startswith('error'):
-                flash(f'{k}: {v}', "danger")
-        return redirect(url_for('settings'))
-    
-    if request.args['state'] != session.get('oauth2_ig_state'):
-        flash("invalid request", "danger")
-        return redirect(url_for("settings"))
-    
-    # make sure that the authorization code is present
-    if 'code' not in request.args:
-        flash("invalid request", "danger")
-        return redirect(url_for("settings")) 
-
-    provide_data = Config.instagramAuth
-
-    # exchange the authorization code for a short lived access token
-    response = requests.post(provide_data["tokenUrl"], data={
-        "client_id": provide_data["clientId"],
-        "client_secret": provide_data["clientSecret"],
-        "code": request.args["code"].rstrip("#_"),
-        "grant_type": "authorization_code",
-        "redirect_uri": "https://86010cwj-5000.uks1.devtunnels.ms" + url_for("instagram_callback")
-        }, headers={"Accept": "application/json"}
-    )  
-    if not response.ok:
-        flash("Server error, please try again", "danger")
-        return redirect(url_for("settings"))
-    
-    token_info = response.json()
-
-    access_token = token_info.get("access_token")
-    granted_permissions = token_info.get("permissions")
-    
-    if not (access_token and granted_permissions):
-        flash("Server error, please try again", "danger")
-        return redirect(url_for("settings"))
-    
-    # Ensure the necessary permissions are granted.
-    for scope in provide_data["scopes"]:
-        if scope not in granted_permissions:
-            flash(f"Permission {scope} is required!", "danger")
-            return redirect(url_for("settings"))
-  
-    # Exchnage the short lived token with the long lived token
-    response = requests.get(provide_data["longTokenUrl"], params={
-        "access_token": access_token,
-        "client_secret": provide_data["clientSecret"],
-        "grant_type": "ig_exchange_token"
-    }, headers={"Accept": "application/json"})
-    if not response.ok:
-        print(response.text)
-        flash("Server error, please try again", "danger")
-        return redirect(url_for("settings"))
-
-    token_info = response.json()
-    
-    access_token = token_info.get("access_token") # Long lived
-    if not (access_token and token_info.get("expires_in")):
-        flash("Server error, please try again", "danger")
-        return redirect(url_for("settings"))
-    
-    expire_in = datetime.datetime.now() + datetime.timedelta(seconds=token_info.get("expires_in")) # Number of seconds until token expires
-
-    # Get user profile
-    graph = GraphApi(access_token=access_token)
-    profile = graph.getProfileMe()
-    if not profile:
-        flash("Server error, Please try again", "danger")
-        return redirect(url_for("settings"))
-    
-    rows = query_db("SELECT * FROM ConnectedAccounts WHERE account_id = ? AND platform = 'instagram';", profile.get("id"))
-    if rows:
-        if rows[0]["user_id"] == session["user_id"]:
-            update_account = query_db("UPDATE ConnectedAccounts SET account_token = ?, token_expires_at = ? WHERE account_id = ?;", 
-                access_token, expire_in, profile.get("id")
-            )
-            if not update_account:
-                flash("Server error try again", "danger")
-                return redirect(url_for("settings"))
-        else:
-            flash("Account already connected with other user", "danger")
-            return redirect(url_for("settings"))
-    else:
-        query = """
-        INSERT INTO 
-            ConnectedAccounts (user_id, platform, account_id, account_username, account_token, account_type, connected_at, token_expires_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-        """
-        account_id = query_db(query, session["user_id"], "instagram", profile.get("id"), profile.get("username"), access_token, profile["account_type"], datetime.datetime.now(), expire_in)
-        if not account_id:
-            flash("Server error try again", "danger")
-            return redirect(url_for("settings"))
-        
-    flash("Account connected successfully", "success")
-    return redirect(url_for("settings"))
     
 @app.route("/authorize")
 def oauth2_authorize():
     """Redirect to Google auth screen"""
     if session.get("user_id"):
         return redirect(url_for("index")) # TODO: redirect to agent route
-    
-    session["user_id"] = 1
-    return redirect("/")
+
     provide_data = Config.googleAuth
     # Generate a random string for the state parameter
     session["oauth2_state"] = secrets.token_urlsafe(16)
@@ -778,7 +544,7 @@ def default_ig_process(senderIgsid, user, payload, configs):
     if user.get("default_config_id"): 
         for config in configs:
             if config.get("id") == user["default_config_id"]:
-                vid_ps = VideoProcess(user, payload, config)
+                vid_ps = VideoProcessor(user, payload, config)
                 vid_ps.start_process()     
                 return 
     else:
@@ -789,7 +555,7 @@ def default_ig_process(senderIgsid, user, payload, configs):
 @celery.task   
 def ig_process(user, payload, config_name):
     print(f"{config_name} config processing video url: {payload['url']}")
-    vid_ps = VideoProcess(user, payload, config_name)
+    vid_ps = VideoProcessor(user, payload, config_name)
     vid_ps.start_process() 
     
     

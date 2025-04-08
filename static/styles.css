@@ -1,0 +1,93 @@
+/* Secondary Navigation CSS */
+.nav-scroller {
+    position: relative;
+    z-index: 2;
+    height: 2.75rem;
+    overflow-y: hidden;
+}
+
+.nav-scroller .nav {
+    display: flex;
+    flex-wrap: nowrap;
+    padding-bottom: 1rem;
+    margin-top: -1px;
+    overflow-x: auto;
+    text-align: center;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+}
+
+.nav-scroller .nav {
+    color: rgba(255, 255, 255, .75);
+  }
+  
+.nav-scroller .nav-link{
+    padding-top: .75rem;
+    padding-bottom: .75rem;
+    font-size: .875rem;
+    color: #6c757d;
+}
+
+.nav-scroller .nav-link:hover {
+    color: #007bff;
+}
+
+.nav-scroller .active {
+    font-weight: 500;
+    color: #343a40;
+}
+/* Gameplay Checkbox CSS */
+.modal-content {
+    background-color: #f8f9fa;
+}
+
+.gameplay-card {
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.gameplay-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+}
+
+.form-check-input {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+}
+
+.form-check-label {
+    font-weight: 500;
+    margin-left: 8px;
+}
+
+.form-check-input:checked {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.card-body {
+    padding: 1.25rem;
+}
+/* Custom social media button styles */
+
+.btn-tiktok {
+    background-color: #000;
+    color: #fff;
+}
+
+.btn-tiktok:hover {
+    color: #fff;
+    background-color: #3b3b3b;
+}
+
+.btn-instagram {
+    background-color: #E1306C;
+    color: #fff;
+}
+
+.btn-instagram:hover {
+    color: #fff;
+    background-color: #C13584;
+}

@@ -1,3 +1,5 @@
 venv/
 .env
 autoSplitter.db
+__pycache__/
+flask_session/

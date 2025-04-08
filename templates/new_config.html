@@ -1,0 +1,243 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    New Config
+{% endblock %}
+
+{% block config %}
+    active
+{% endblock %}
+
+{% block main %}
+<div class="container-lg">
+    <h1 class="text-center fw-bold mb-3">🎬 Setup Your Editing Automation</h1>
+    <p class="text-center text-muted lead">Configure once, then start video formatting & posting effortlessly.</p>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <form action="/new-config" method="post" class="p-4 border rounded-4 shadow-sm bg-white">
+                
+                <!-- Config Name -->
+                <div class="mb-3">
+                    <label for="configName" class="form-label fw-bold">Configuration Name *</label>
+                    <input type="text" class="form-control form-control-lg rounded-3" id="configName" name="configName" placeholder="Enter a unique name" required>
+                    <small class="text-muted">Use only letters, numbers, and underscores.</small>
+                </div>
+
+                <!-- Split Orientation -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Video Split Orientation (Optional)</label>
+                    <div class="btn-group w-100">
+                        <input type="radio" class="btn-check" id="horizontal" name="splitType" value="horizontal">
+                        <label class="btn btn-outline-dark" for="horizontal">Horizontal Split</label>
+
+                        <input type="radio" class="btn-check" id="vertical" name="splitType" value="vertical">
+                        <label class="btn btn-outline-dark" for="vertical">Vertical Split</label>
+                    </div>
+                </div>
+
+                <!-- Video Position & Percentage -->
+                <div class="mb-4" id="videoPositionSection" style="display: none;">
+                    <label class="form-label fw-bold">Video Position</label>
+                    <select class="form-select" id="videoPosition" name="videoPosition"></select>
+                    <small class="form-text text-muted">Select where the video should be placed.</small>
+
+                    <div class="mt-4">
+                        <div class="d-flex justify-content-between">
+                            <label class="form-label fw-bold">Adjust Video Split Percentage</label>
+                            <div id="percent" class="fw-bold">50%</div>
+                        </div>
+                        <input type="range" class="form-range" id="videoPercentage" name="videoPercentage" value="50">
+                    </div>
+
+                    <!-- Processing Options (Shown only for Vertical) -->
+                    <div class="mb-3" id="processingOptions" style="display: none;">
+                        <label class="form-label fw-bold">Choose Video Edit Type</label>
+                        <select name="processingOptions" class="form-select">
+                            <option value="fit" selected>Fit Video</option>
+                            <option value="crop">Crop Video</option>
+                        </select>
+                    </div>
+
+                    <!-- Select Gameplays -->
+                    <div class="mb-4 mt-4">
+                        <button id="gameplayBtn" type="button" class="btn btn-outline-primary w-100 rounded-3 fw-bold" data-bs-toggle="modal" data-bs-target="#gameplayModal">
+                            🎮 Select Gameplays
+                        </button>
+                        <small class="text-muted d-block mt-1">Selecting multiple gameplays will result in a random selection.</small>
+                    </div>
+                </div>
+
+                <!-- Gameplays Modal -->
+                <div class="modal fade" id="gameplayModal" tabindex="-1" aria-labelledby="gameplayModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-scrollable modal-xl">
+                        <div class="modal-content rounded-4">
+                            <div class="modal-header border-0">
+                                <h5 class="modal-title fw-bold" id="gameplayModalLabel">Choose Your Gameplays</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body p-4">
+                                <div id="gameplayBody" class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+                                    <!-- Sample Video Card -->
+                    
+                                    <!-- Repeat for other videos -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 mb-4">
+                    <label for="socialAccounts" class="form-label fw-bold mb-2">Select Social Media Accounts</label>
+                    <p class="text-muted small mb-3">
+                      Choose the social media accounts where you want to automatically post. You can select zero or multiple accounts.
+                    </p>
+                    <div class="border p-2 rounded overflow-y-auto text-start" style="max-height: 150px;">    
+                        {% for account in accounts %}   
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="option{{ account.id }}" name="postAccounts" value="{{ account.id }}">
+                            <label class="form-check-label" for="option{{ account.id }}">
+                                {% if account.platform == 'instagram' %}
+                                <i class="fab fa-instagram icon"></i></td>
+                                {% else %}
+                                <i class="fab fa-tiktok icon"></i>
+                                {% endif %}
+                                {{ account.account_username }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-dark btn-lg w-100 rounded-3 fw-bold mt-3">🚀 Create Configuration</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const splitButtons = document.querySelectorAll('input[name="splitType"]');
+        const videoPositionSection = document.getElementById("videoPositionSection");
+        const videoPositionSelect = document.getElementById("videoPosition");
+        const percent = document.getElementById("percent");
+        const videoPercentage = document.getElementById("videoPercentage");
+        const modalScroll = document.querySelector("#gameplayModal .modal-body");
+        const gameplayBody = document.getElementById("gameplayBody");
+        const gameplayBtn = document.getElementById("gameplayBtn");
+        const processingOptions = document.getElementById("processingOptions");
+
+        
+        function addGameplay({id, title, category}) {
+            const gameplay = `<div class="col">
+                <div class="card shadow-sm">
+                    <img src="/thumbnail/${id}" class="card-img-top" alt="${title} Preview">
+                    <div class="card-body">
+                        <h5 class="card-title">${title}</h5>
+                        <p class="card-text">Category: <span class="text-muted">${category}</span></p>
+                        <input type="checkbox" name="gameplay" value="${id}">
+                    </div>
+                </div>
+            </div>`;
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(gameplay, "text/html");
+            gameplayBody.appendChild(doc.body.firstChild);
+        }
+
+        function getGameplay() {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            // Get page number 
+            const pageNumber = localStorage.getItem("page");
+            const url = `${protocol}//${host}/explore?page=${pageNumber}`;
+            
+            fetch(url)
+            .then((response) => {
+                if (!response.ok) {
+                    throw Error("response error!");
+                }
+                return response.json();
+            })
+            .then((data) => {
+                if (data.length != 0) {
+                    for (let i = 0; i < data.length; i++) {
+                        addGameplay(data[i]);
+                    }
+                    localStorage.setItem("page", Number(pageNumber) + 1);
+                }
+                else {
+                    gameplayBtn.removeEventListener("click", getGameplay);
+                    modalScroll.removeEventListener("scroll", handleModalScroll);
+                }
+              
+            })
+            .catch((error) => {
+                console.log(error);
+            });
+
+        }
+
+        function handleModalScroll() {
+            const top = modalScroll.scrollTop;
+            const height = modalScroll.offsetHeight;
+
+            if (top + height >= modalScroll.scrollHeight - 1) {
+                getGameplay();
+            }
+        }
+
+        try {
+            localStorage.setItem("page", 1);
+
+            splitButtons.forEach(radio => {
+            radio.addEventListener('change', function(event) {
+                videoPositionSelect.innerHTML = '';
+                
+                if (event.target.value === 'horizontal') {
+                    [
+                        { value: 'top', text: 'Top' },
+                        { value: 'bottom', text: 'Bottom' }
+                    ].forEach(option => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = option.value;
+                        optionElement.textContent = option.text;
+                        videoPositionSelect.appendChild(optionElement);
+                    });
+                    videoPositionSection.style.display = 'block';
+                    processingOptions.style.display = 'none';
+                } else if (event.target.value === 'vertical') {
+                    [
+                        { value: 'left', text: 'Left' },
+                        { value: 'right', text: 'Right' }
+                    ].forEach(option => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = option.value;
+                        optionElement.textContent = option.text;
+                        videoPositionSelect.appendChild(optionElement);
+                    });
+                    videoPositionSection.style.display = 'block';
+                    processingOptions.style.display = 'block';
+                } else {
+                    videoPositionSection.style.display = 'none';
+                    processingOptions.style.display = 'none';
+                }
+            });
+        });
+
+            videoPercentage.addEventListener("change", () => {
+                percent.textContent = `${videoPercentage.value}%`;
+            });
+            
+            gameplayBtn.addEventListener("click", getGameplay);
+            modalScroll.addEventListener("scroll", handleModalScroll);
+
+        }
+        catch (error) {
+            console.log(error);
+        }
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Output
+{% endblock %}
+
+{% block output %}
+    active 
+{% endblock %}
+
+{% block main %}
+<div id="album" class="container">
+    <div id="finalVideos" class="row row-cols-1 row-cols-sm-2 row-cols-md-4 g-3">
+
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const finalVideos = document.getElementById("finalVideos");
+  
+        function addVideo({id, caption}) {
+            const video = `<div class="col">
+            <div style="width: 100%; max-width: 250px; aspect-ratio: 9/16;">
+                <video class="w-100 rounded" controls>
+                    <source src="/download/${id}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <p class="text-truncate" style="max-width: 150px;">${caption}<br>
+                    <a href="/download/${id}?attachment=true" type="button" class="btn btn-sm btn-outline-secondary">Download</a>
+                </p>
+                </div>
+            </div>`;
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(video, "text/html");
+            finalVideos.appendChild(doc.body.firstChild);
+        }
+
+        function getVideo() {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            // Get page number 
+            const pageNumber = localStorage.getItem("page");
+            const url = `${protocol}//${host}/output`;
+            
+            const formData = new FormData();
+            formData.append("page", pageNumber)
+            fetch(url, {
+                method: "post",
+                body: formData
+            })
+            .then((response) => {
+                if (!response.ok) {
+                    throw Error("response error!");
+                }
+                return response.json();
+            })
+            .then((data) => {
+                if (data.length != 0) {
+                    for (let i = 0; i < data.length; i++) {
+                        addVideo(data[i]);
+                    }
+                    localStorage.setItem("page", Number(pageNumber) + 1);
+                }
+                else {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString('<p class="lead text-center">No videos</p>', "text/html");
+                    document.getElementById("album").appendChild(doc.body.firstChild);
+                    window.removeEventListener("scroll", handlePageScroll);
+                }
+              
+            })
+            .catch((error) => {
+                console.log(error);
+            });
+
+        }
+
+        function handlePageScroll() {
+            const scrollPosition = window.scrollY;
+            const windowHeight = window.innerHeight;
+            const documentHeight = document.documentElement.scrollHeight;
+
+            if (scrollPosition + windowHeight >= documentHeight - 1) {
+                getVideo();
+            }
+        }
+
+        try {
+            localStorage.setItem("page", 1);
+            // Fetch output videos
+            getVideo();
+            window.addEventListener("scroll", handlePageScroll);
+        }
+        catch (error) {
+            console.log(error);
+        }
+    });
+</script>
+{% endblock %}

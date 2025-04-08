@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    In Progress
+{% endblock %}
+
+{% block progress %}
+    active 
+{% endblock %}
+
+{% block main %}
+<div class="container">
+    <table class="table table-striped">
+        <thead>
+        <tr>
+            <th class="text-start">Process Id</th>
+            <th class="text-start">Caption</th>
+            <th class="text-start">Config Name</th>
+            <th class="text-start">Gameplay Name</th>
+            <th class="text-end">Created At</th>
+            <th class="text-end">Status</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for process in processes %}
+            <tr>
+                <td class="text-start">{{ process.id }}</td>
+                <td class="text-start text-truncate" style="max-width: 150px;">{{ process.caption or ""}}</td>
+                <td class="text-start">{{ process.config_name or ""}}</td>
+                <td class="text-start">{{ process.title  or ""}}</td>
+                <td class="text-end">{{ process.created_at }}</td>
+                <td class="text-end">{{ process.status }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

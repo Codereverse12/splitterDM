@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+    <head>
+
+        <meta charset="utf-8">
+        <meta name="viewport" content="initial-scale=1, width=device-width">
+
+        <!-- http://getbootstrap.com/docs/5.1/ -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+        <!-- https://favicon.io/ -->
+        <link href="/static/favicon.ico" rel="icon">
+        
+        <!-- https://fontawesome.com -->
+        <script src="https://kit.fontawesome.com/82425a0f72.js" crossorigin="anonymous"></script>
+
+        <link href="/static/styles.css" rel="stylesheet">
+
+        <title>AutoSplit: {% block title %}{% endblock %}</title>
+
+    </head>
+
+    <body>
+
+        <nav class="bg-light border navbar navbar-expand-md navbar-light">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">
+                    <img src="/static/logo.jpg" class="rounded-2" alt="AutoEdit" width="30" height="30"> 
+                    AutoSplit
+                </a>
+                <ul class="nav ms-auto mt-2 gap-1">
+                    <li class="nav-item">
+                        <a class="btn btn-outline-light border text-black rounded-3" href="https://www.instagram.com/gopalai43" target="_blank">
+                            <i class="fa-brands fa-instagram"></i>
+                        </a>
+                    </li>
+                    {% if session["user_id"] %}    
+                    <li class="nav-item">
+                        <a class="nav-link" style="color:#6c757d;" onmouseover="this.style.color='#007bff'" onmouseout="this.style.color='#6c757d'"  href="/logout">Log Out</a>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="btn btn-outline-light border text-black rounded-3" type="button" href="{{ url_for('oauth2_authorize') }}" role="button">
+                            <img class="mb-1 me-2" src="/static/google.svg" alt="Google logo">
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>    
+            </div>
+        </nav>
+        {% if session["user_id"] %}
+        <div class="nav-scroller bg-body shadow-sm">
+            <nav class="nav" aria-label="Secondary navigation">
+              <a class="nav-link {% block dashboard %}{% endblock %}" href="{{ url_for('dashboard') }}">Dashboard</a>
+              <a class="nav-link {% block config %}{% endblock %}" href="{{ url_for('new_config') }}">New Config</a>
+              <a class="nav-link {% block settings %}{% endblock %}" href="{{ url_for('settings') }}">Settings</a>
+              <a class="nav-link {% block progress %}{% endblock %}" href="{{ url_for('progress') }}">In Progress</a>
+              <a class="nav-link {% block output %}{% endblock %}" href="{{ url_for('output') }}">Ready for Use</a>
+            </nav>
+        </div>
+        {% endif %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flashed">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show text-center" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% endwith %}
+
+        <main class="container-fluid py-5 text-center">
+            {% block main %}{% endblock %}
+        </main>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    </body>
+
+</html>

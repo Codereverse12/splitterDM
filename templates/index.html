@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Home
+{% endblock %}
+
+{% block main %}
+    <h1 class="display-4 fw-bold text-body-emphasis">Edit Videos Instantly <br>with a DM!</h1>
+    <p class="lead mb-4">Send us a DM with your video link, and let us edit it for you—automatically enhancing your content.</p>
+
+    <!-- Try It Now Button -->
+    <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mb-5">
+        <a href="{{ url_for('dashboard') }}" type="button" 
+            style="
+                background: linear-gradient(135deg, #B409E7, #5867F7);
+                border: none;
+                border-radius: 8px;
+                padding: 12px 24px;
+                font-size: 18px;
+                font-weight: bold;
+                color: #F9FCFD;
+                text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+                box-shadow: 0px 4px 10px rgba(88, 103, 247, 0.4);
+                transition: all 0.3s ease-in-out;
+            " 
+            class="btn btn-lg px-4 me-sm-3"
+            onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0px 6px 14px rgba(88, 103, 247, 0.6)';"
+            onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0px 4px 10px rgba(88, 103, 247, 0.4)';">
+            Try it for free
+        </a>
+    </div>
+
+
+    <!-- Video Comparison Section -->
+    <div class="d-flex justify-content-center align-items-center d-none d-md-block">
+        <div class="row row-cols-3 g-3 justify-content-center align-items-center">
+            <!-- Before Video Card -->
+            <div class="col-auto">
+                <div style="width: 100%; max-width: 250px; aspect-ratio: 9/16;">
+                    <video class="w-100 rounded" muted autoplay loop>
+                        <source src="/static/before-video.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+    
+            <!-- Arrow (Centered) -->
+            <div class="col-auto d-flex justify-content-center align-items-center">
+                <span class="fs-1">→</span>
+            </div>
+    
+            <!-- After Video Card -->
+            <div class="col-auto">
+                <div style="width: 100%; max-width: 250px; aspect-ratio: 9/16;">
+                    <video class="w-100 rounded" muted autoplay loop>
+                        <source src="/static/after-video.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

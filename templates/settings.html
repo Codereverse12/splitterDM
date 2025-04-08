@@ -4,68 +4,8 @@
     Settings
 {% endblock %}
 
-{% block settings %}
-    active 
-{% endblock %}
-
 {% block main %}
 <div class="container">
-    <h1 class="text-center mb-4"><i class="fas fa-user-circle"></i> Manage Your Social Media Accounts</h1>
-    <p class="text-center text-muted">Account used to send or forward video links via DM.</p>
 
-    <div class="card text-center shadow-sm mx-auto" style="max-width: 500px;">
-        <div class="card-body">
-            <form action="/settings" method="post">
-                <!--
-                <div class="mb-3">
-                    <label for="tiktokUsername" class="form-label"><i class="fab fa-tiktok icon"></i> TikTok Username</label>
-                    <input type="text" class="form-control" value="{{ '@' + tiktok_username if tiktok_username else '' }}" name="tiktokUsername" placeholder="https://www.tiktok.com/@username">
-                </div>
-                -->
-                <div class="mb-3">
-                    <label for="instagramUsername" class="form-label"><i class="fab fa-instagram icon"></i> Instagram Username</label>
-                    <input type="text" class="form-control" value="{{ '@' + ig_username if ig_username else '' }}" name="igUsername" placeholder="https://www.instagram.com/username">
-                </div>
-                <button type="submit" class="btn btn-danger w-100">Save Account</button>
-            </form>
-        </div>
-    </div>
-
-    <div class="text-center my-5">
-        <h2>Connect for Auto-Posting</h2>
-        <p class="text-muted">Grant permissions to automatically post edited videos.</p>
-        <div class="d-flex justify-content-center gap-3">
-            <a href="{{ url_for('tiktok_authorize') }}" class="btn btn-tiktok"><i class="fab fa-tiktok"></i> Connect TikTok</a>
-            <a href="{{ url_for('instagram_authorize') }}" class="btn btn-instagram"><i class="fab fa-instagram"></i> Connect Instagram</a>
-        </div>
-    </div>
-
-    <h3 class="mt-5">Connected Accounts</h3>
-    <table class="table table-hover mt-3">
-        <thead>
-            <tr>
-                <th>Platform</th>
-                <th>Username</th>
-                <th>Connected Date</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for account in accounts %}
-            <tr>
-                <td>
-                    {% if account.platform == 'instagram' %}
-                    <i class="fab fa-instagram icon"></i> Instagram</td>
-                    {% else %}
-                    <i class="fab fa-tiktok icon"></i> TikTok
-                    {% endif %}
-                </td>
-                <td>@ {{ account.account_username }}</td>
-                <td>{{ account.connected_at }}</td>
-                <td><button class="btn btn-danger btn-sm">Disconnect</button></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
 </div>
 {% endblock %}

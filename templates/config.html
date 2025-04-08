@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    {{ config.id }}
+{% endblock %}
+
+{% block main %}
+<div class="container py-4">
+    <div class="d-flex justify-content-end align-items-center mb-4">
+        <div>
+            <form action="/delete" method="post">
+                <input type="text" name="configId" value="{{ config.id }}" hidden>
+                <button class="btn btn-danger" type="submit">Delete Configuration</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Basic Configuration Section -->
+    <div class="card mb-4 border-start border-dark border-4">
+        <div class="card-body">
+            <h3 class="card-title mb-3">Basic Configuration</h3>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <p class="mb-1 text-muted">Config Name</p>
+                    <p class="fw-medium">{{ config.config_name }}</p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <p class="mb-1 text-muted">Split Type</p>
+                    <p class="fw-medium">{{ config.split_type or "" }}</p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <p class="mb-1 text-muted">Video Position</p>
+                    <p class="fw-medium">{{ config.video_position or "" }}</p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <p class="mb-1 text-muted">Edit Type</p>
+                    <p class="fw-medium">{{ config.edit_type or "" }}</p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <p class="mb-1 text-muted">Video Percentage</p>
+                    <p class="fw-medium">{{ config.original_video_percentage ~ "%" if config.original_video_percentage else ""}}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if gameplays %}
+        <!-- Gameplays Section -->
+        <div class="card border-start border-dark border-4">
+            <div class="card-body">
+                <h3 class="card-title mb-3">Gameplay Videos</h3>
+                <div class="list-group overflow-y-auto" style="height: 200px;">
+                    {% for gameplay in gameplays %}
+                        <div class="list-group-item">{{ gameplay.title }} | {{ gameplay.category}}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

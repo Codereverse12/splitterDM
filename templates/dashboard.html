@@ -17,6 +17,7 @@
             <th class="text-start">Config type</th>
             <th class="text-start">Created at</th>
             <th class="text-end"></th>
+            <th class="text-end"></th>
         </tr>
         </thead>
         <tbody>
@@ -25,6 +26,14 @@
                 <td class="text-start">{{ config.config_name }}</td>
                 <td class="text-start">{{ config.split_type }}</td>
                 <td class="text-start">{{ config.created_at }}</td>
+                <td class="text-end">
+                    <form action="/default-config" method="post">
+                        <input type="text" name="configId" value="{{ config.id }}" hidden>
+                        <button type="submit" name="state" value="{{ 'remove' if config.is_default else 'set' }}" class="btn btn-{{ 'danger' if config.is_default else 'primary' }} btn-sm">
+                            {{ 'unset default' if config.is_default else 'set default' }}
+                        </button>
+                    </form>
+                </td>
                 <td class="text-end"><a href="{{ url_for('config', id=config.id) }}" class="btn btn-dark">View</a></td>
             </tr>
         {% endfor %}

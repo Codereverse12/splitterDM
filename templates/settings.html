@@ -4,8 +4,25 @@
     Settings
 {% endblock %}
 
+{% block settings %}
+    active 
+{% endblock %}
+
 {% block main %}
 <div class="container">
+    <h1 class="text-center mb-4"><i class="fas fa-user-circle"></i> Manage Your Social Media Accounts</h1>
+    <p class="text-center text-muted">Account used to send or forward video links via DM.</p>
 
+    <div class="card text-center shadow-sm mx-auto" style="max-width: 500px;">
+        <div class="card-body">
+            <form action="/settings" method="post">
+                <div class="mb-3">
+                    <label for="instagramUsername" class="form-label"><i class="fab fa-instagram icon"></i> Instagram Username</label>
+                    <input type="text" class="form-control" value="{{ '@' + ig_username if ig_username else '' }}" name="igUsername" placeholder="https://www.instagram.com/username">
+                </div>
+                <button type="submit" class="btn btn-danger w-100">Save Account</button>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}

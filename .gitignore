@@ -3,3 +3,7 @@ venv/
 autoSplitter.db
 __pycache__/
 flask_session/
+thumbnail/
+gameplays/
+outputs/
+reels

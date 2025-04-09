@@ -170,4 +170,7 @@ class Editor:
 
     @staticmethod
     def copycat(video_path):
-        return shutil.copy(video_path, Config.outputDirectory)
+        try:
+            return shutil.copy(video_path, Config.outputDirectory)
+        except Exception as es:
+            print(es)

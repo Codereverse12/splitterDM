@@ -71,3 +71,20 @@ def extract_reel_shortcode(text):
 
     match = re.search(pattern, text)
     return match.group(2) if match else None
+
+def is_video_link(text):
+    pattern = re.compile(
+    r"""
+    (https?:\/\/)?                                     # Optional scheme
+    (www\.)?                                           # Optional www
+    (                                                  # Start group of platforms
+        (youtube\.com\/shorts\/[a-zA-Z0-9_-]{11})      # YouTube Shorts
+        |                                              # OR
+        (vm\.tiktok\.com\/[a-zA-Z0-9_-]+)            # TikTok links
+    )
+    (\/)?                                              # Optional trailing slash
+    """, re.VERBOSE)
+    mo = pattern.search(text)
+    if mo is None:
+        return None
+    return mo.group()

@@ -7,7 +7,7 @@ import requests
 from urllib.parse import urlencode
 from my_db import query_db
 import datetime
-from helpers import login_required, verify_signature, is_valid_input, instagram_username
+from helpers import login_required, verify_signature, is_valid_input, instagram_username, is_video_link
 from config_celery import celery_init_app
 from uuid import uuid4
 import datetime
@@ -495,6 +495,7 @@ def process_ig_webhook(body):
                         task_obj = default_ig_process.apply_async(args=[senderIgsid, rows[0], payload, user_configs], countdown=Config.countdown)
                         print(f"task_id: {task_obj.id} will start after 20sec...")
                         
+                        payload["type"] = "attachment"
                         task_data = {"task_id": task_obj.id, "payload": payload, "timestamp": webhookEvent["timestamp"]}
                         # Save the payload inside redis until a configuration name arrives
                         print(f"Set task_id: {task_obj.id} into redis")
@@ -502,14 +503,27 @@ def process_ig_webhook(body):
                         redis_client.set(f"{senderIgsid}_{payload['reel_video_id']}", json.dumps(task_data))
                 
                 elif message.get("text"):
-                    msg = message["text"].strip().lower()
+                    msg = message["text"].strip()
                     config = None
                     for cg in user_configs:
-                        if cg.get("config_name") == msg:
+                        if cg.get("config_name") == msg.lower():
                             config = cg
                     
                     if not config:
-                        print("Configuration doesn't exists...")
+                        link = is_video_link(msg)
+                        if link:
+                            payload = {"url": link, "type": "link"}
+                            # Instruct a default task to to process the video inside redis if no configuration name arrives in 20     
+                            task_obj = default_ig_process.apply_async(args=[senderIgsid, rows[0], payload, user_configs], countdown=Config.countdown)
+                            print(f"task_id: {task_obj.id} will start after 20sec...")
+                            
+                            task_data = {"task_id": task_obj.id, "payload": payload, "timestamp": webhookEvent["timestamp"]}
+                            # Save the payload inside redis until a configuration name arrives
+                            print(f"Set task_id: {task_obj.id} into redis")
+                            # TODO: need to add key expiration
+                            redis_client.set(f"{senderIgsid}_{payload['url']}", json.dumps(task_data))
+                        else:
+                            print("Configuration doesn't exists...")
                         return 
                     
                     current_task = None
@@ -532,14 +546,19 @@ def process_ig_webhook(body):
                         
                         # Delete task from redis
                         print(f"Delete task with id: {current_task.get('task_id')} from redis...")
-                        redis_client.delete(f"{senderIgsid}_{current_task['payload']['reel_video_id']}")
-                        
+                        if current_task["payload"]["type"] == "attachment":
+                            redis_client.delete(f"{senderIgsid}_{current_task['payload']['reel_video_id']}")
+                        else:
+                            redis_client.delete(f"{senderIgsid}_{current_task['payload']['url']}")
                         ig_process.delay(rows[0], current_task["payload"], config)
                     
 @celery.task
 def default_ig_process(senderIgsid, user, payload, configs):
     # Delete the reel video from redis
-    redis_client.delete(f"{senderIgsid}_{payload['reel_video_id']}")
+    if payload["type"] == "attachment":
+        redis_client.delete(f"{senderIgsid}_{payload['reel_video_id']}")
+    else:
+        redis_client.delete(f"{senderIgsid}_{payload['url']}")
     # Check user have default config            
     if user.get("default_config_id"): 
         for config in configs:

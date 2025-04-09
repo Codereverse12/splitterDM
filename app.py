@@ -197,6 +197,7 @@ def delete_config():
     config_id = request.form.get("configId")
     rows = query_db("DELETE FROM video_configurations WHERE id = ? AND user_id = ?;", config_id, session["user_id"])
     if rows:
+        query_db("UPDATE users SET default_config_id = ? WHERE id = ? AND default_config_id = ?;", None, session["user_id"], config_id)
         flash("Successfully deleted!", "success")
     else:
         flash("Couldn't delete, try again", "danger")

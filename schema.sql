@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS video_jobs (
     user_id INTEGER NOT NULL,
     caption TEXT,
     video_url TEXT,
+    video_type TEXT CHECK (video_type IN ('tiktok', 'youtube', 'instagram')),
     status TEXT CHECK (status IN ('pending', 'downloaded', 'processing', 'completed', 'failed')) DEFAULT 'pending',
     processing_errors TEXT,
     created_at NUMERIC NOT NULL,

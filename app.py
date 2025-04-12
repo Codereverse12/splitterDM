@@ -328,8 +328,6 @@ def oauth2_authorize():
     if session.get("user_id"):
         return redirect(url_for("index")) # TODO: redirect to agent route
 
-    session["user_id"] = 1
-    return redirect("/dashboard") # TODO: remove
     provide_data = Config.googleAuth
     # Generate a random string for the state parameter
     session["oauth2_state"] = secrets.token_urlsafe(16)

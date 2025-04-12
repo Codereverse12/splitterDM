@@ -30,7 +30,7 @@ class VideoProcessor:
         # Insert job
         try:
             if is_attachment:
-                query_db("INSERT INTO video_jobs (id, user_id, caption, video_url, config_id, created_at) VALUES (?, ?, ?, ?, ?, ?);", self.job_id, self.user["id"], title, video_url, self.config['id'], datetime.datetime.now())
+                query_db("INSERT INTO video_jobs (id, user_id, caption, video_url, video_type, config_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?);", self.job_id, self.user["id"], title, video_url, "instagram", self.config['id'], datetime.datetime.now())
                 video_path = self.download_attachment_video(video_url)
             else:
                 query_db("INSERT INTO video_jobs (id, user_id, video_url, config_id, created_at) VALUES (?, ?, ?, ?, ?);", self.job_id, self.user["id"], video_url, self.config['id'], datetime.datetime.now())
@@ -116,7 +116,7 @@ class VideoProcessor:
                 for chunk in res.iter_content(102400):
                     file.write(chunk)
             
-            query_db("UPDATE video_jobs SET caption = ? WHERE id = ?;", video.get("title"), self.job_id)
+            query_db("UPDATE video_jobs SET caption = ?, video_type = ? WHERE id = ?;", video.get("title"), 'youtube', self.job_id)
             return file_path   
         except Exception as e:
             logging.error("TikTok download failed")
@@ -141,7 +141,7 @@ class VideoProcessor:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 if info.get("description"):
-                    query_db("UPDATE video_jobs SET caption = ? WHERE id = ?;", info["description"], self.job_id)
+                    query_db("UPDATE video_jobs SET caption = ?, video_type = ? WHERE id = ?;", info["description"], 'youtube', self.job_id)
                 
                 ext = info.get("ext", "mp4")
                 return f"{file_path}.{ext}"

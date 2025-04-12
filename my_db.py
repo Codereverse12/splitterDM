@@ -1,5 +1,6 @@
 from cs50 import SQL
 import logging
+from flask import abort, redirect, flash
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -12,4 +13,4 @@ def query_db(*args):
         return db.execute(*args)
     except Exception as e:
         logging.error(f"Database error: {e}")
-        raise
+        abort(500, "Server error try again")

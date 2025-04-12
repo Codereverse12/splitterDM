@@ -12,3 +12,4 @@ def query_db(*args):
         return db.execute(*args)
     except Exception as e:
         logging.error(f"Database error: {e}")
+        raise

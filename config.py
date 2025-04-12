@@ -42,6 +42,3 @@ class Config:
     appId = os.environ["IG_APP_ID"]
     appSecret = os.environ["IG_APP_SECRET"]
     verifyToken = os.environ["VERIFY_TOKEN"]
-    
-    # Website url
-    reelsUrl = "https://86010cwj-5000.uks1.devtunnels.ms/reels/"

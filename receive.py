@@ -1,32 +1,16 @@
-import graph_api
+from graph_api import GraphApi
 import response
 import time
 
 class Receive:
-    def __init__(self, user, webhookEvent):
+    def __init__(self, igid):
         """This is a class used to process webhookEvent"""
-        self.user = user
-        self.webhookEvent = webhookEvent
+        self.igid = igid
+        self.message = None
     
-    def handleMessage(self):
-        event = self.webhookEvent
-
-        responses = ""
-        try:
-            if event.get("message"):
-                message = event["message"]
-                
-                if message.get("is_echo"):
-                    return
-                elif message.get("text"):
-                    responses = self.handleTextMessage()
-            elif event.get("postback"):
-                responses = self.handlePostback()
-        except Exception as exc:
-            print(exc)
-            responses = {
-                "text": "An error has occured! We have been notified and will fix the issue shortly!"
-            }
+    def handleMessage(self, message):
+        self.message = message
+        responses = self.handleTextMessage()
         
         if not responses:
             return
@@ -40,26 +24,18 @@ class Receive:
             self.sendMessage(responses)
     
     def handleTextMessage(self):
-        print(f"Received text from user {self.user['name']} ({self.user['user_id']}): \n", 
-        self.webhookEvent["message"]["text"]
-        )  
-        title = "Signup to autosplitter ai"      
+        print(f"Received DM from user ({self.igid})") 
         url = "https://autosplitter.com"
-        return response.genWebUrlButton(title, url)
-
-    def handlePostback(self):
-        print(f"Received Payload: {self.webhookEvent['postback']['payload']} for user {self.user['user_id']}")
-
-        return None
+        return response.genWebUrlButton(self.message, url)
 
     def sendMessage(self, message, delay=0):
         if not message:
             return
         requestBody = {
             "recipient": {
-                "id": self.user["user_id"]
+                "id": self.igid
             },
             "message": message
         }
         time.sleep(delay)
-        graph_api.callSendApi(requestBody)
+        GraphApi().callSendApi(requestBody)

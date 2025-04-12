@@ -11,7 +11,6 @@ from helpers import login_required, verify_signature, is_valid_input, instagram_
 from config_celery import celery_init_app
 from uuid import uuid4
 import datetime
-import graph_api
 from receive import Receive
 import redis 
 import json
@@ -223,7 +222,7 @@ def settings():
         flash("instagram username must be valid", "danger")
         return redirect(url_for("settings"))
     
-    update_row = query_db("UPDATE users SET ig_username = ? WHERE id = ?;", igUsername, session["user_id"])
+    update_row = query_db("UPDATE users SET ig_username = ?, ig_id = ? WHERE id = ?;", igUsername, None, session["user_id"])
     if update_row:
         flash("Successfully saved IG username", "success")
     else:
@@ -329,6 +328,8 @@ def oauth2_authorize():
     if session.get("user_id"):
         return redirect(url_for("index")) # TODO: redirect to agent route
 
+    session["user_id"] = 1
+    return redirect("/dashboard") # TODO: remove
     provide_data = Config.googleAuth
     # Generate a random string for the state parameter
     session["oauth2_state"] = secrets.token_urlsafe(16)
@@ -475,14 +476,14 @@ def process_ig_webhook(body):
                     if update_count:
                         rows = query_db("SELECT * FROM users WHERE ig_id = ?;", senderIgsid)
                     else:
-                        send_ig_reply.delay(senderIgsid, "Signup to autosplit!")
+                        send_ig_reply(senderIgsid, "Signup to autosplit!")
                         return 
                 else:
                     return 
             
             user_configs = query_db("SELECT * FROM video_configurations WHERE user_id = ?;", rows[0]["id"])
             if not user_configs:
-                send_ig_reply.delay(senderIgsid, "No video configurations found. Set up a new one now to customize your video edits")
+                send_ig_reply(senderIgsid, "No video configurations found. Set up a new one now to customize your video edits")
                 return 
             
             if webhookEvent.get("message"):    
@@ -524,7 +525,7 @@ def process_ig_webhook(body):
                             # TODO: need to add key expiration
                             redis_client.set(f"{senderIgsid}_{payload['url']}", json.dumps(task_data))
                         else:
-                            print("Configuration doesn't exists...")
+                            send_ig_reply(senderIgsid, "Configuration doesn't exists")
                         return 
                     
                     current_task = None
@@ -569,8 +570,7 @@ def default_ig_process(senderIgsid, user, payload, configs):
                 return 
     else:
         print(f"No default configuration for user: {user['email']}")
-        send_ig_reply.delay(senderIgsid, "No default configuration found...")
-        
+        send_ig_reply(senderIgsid, f"No default configuration for user: {user['email']}")
             
 @celery.task   
 def ig_process(user, payload, config_name):
@@ -578,8 +578,7 @@ def ig_process(user, payload, config_name):
     vid_ps = VideoProcessor(user, payload, config_name)
     vid_ps.start_process() 
     
-    
-@celery.task
-def send_ig_reply(sender_ig_id, message):
-    print(f"Sender id: {sender_ig_id}, message: {message}")
+def send_ig_reply(igId, message):
+    receive_message = Receive(igId)
+    receive_message.handleMessage(message)
     return 

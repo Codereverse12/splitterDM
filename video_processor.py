@@ -9,7 +9,11 @@ import time
 from random import randint
 from editor import Editor
 from graph_api import GraphApi
+import yt_dlp
+import logging
 
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class VideoProcessor:
     def __init__(self, user, payload, config) -> None:
@@ -19,23 +23,29 @@ class VideoProcessor:
         self.job_id = str(uuid4())
 
     def start_process(self):
-        # Start a video job
-        if self.payload.get("type") == "attachment":
-            query_db("INSERT INTO video_jobs (id, user_id, caption, config_id, created_at) VALUES (?, ?, ?, ?, ?);", self.job_id, self.user["id"], self.payload.get('title'), self.config['id'], datetime.datetime.now())
-            # Download video
-            video_path = self.download_attachment_video(self.payload["url"])
-            if not video_path:
-                self._update_status("Failed to download video", "failed")
-                return 
-        else:
-            query_db("INSERT INTO video_jobs (id, user_id, config_id, created_at) VALUES (?, ?, ?, ?);", self.job_id, self.user["id"], self.config['id'], datetime.datetime.now())
-            video_path = self.download_link_video(self.payload["url"])
-            if not video_path:
-                self._update_status("Failed to download video", "failed")
-                return 
+        video_url = self.payload.get("url")
+        title = self.payload.get('title', "")
+        is_attachment = self.payload.get("type") == "attachment"
+
+        # Insert job
+        try:
+            if is_attachment:
+                query_db("INSERT INTO video_jobs (id, user_id, caption, video_url, config_id, created_at) VALUES (?, ?, ?, ?, ?, ?);", self.job_id, self.user["id"], title, video_url, self.config['id'], datetime.datetime.now())
+                video_path = self.download_attachment_video(video_url)
+            else:
+                query_db("INSERT INTO video_jobs (id, user_id, video_url, config_id, created_at) VALUES (?, ?, ?, ?, ?);", self.job_id, self.user["id"], video_url, self.config['id'], datetime.datetime.now())
+                video_path = self.download_link_video(video_url)
+        except Exception as e:
+            logging.error(f"DB insert failed: {e}")
+            self._update_status("Failed to download video", "failed")
+            return
+
+        if not video_path:
+            self._update_status("Failed to download video", "failed")
+            return
         
-        # Update job status to download
         self._update_status(None, "downloaded")
+        
         if not self.config.get("split_type"):
             copy_path = Editor.copycat(video_path)
             if copy_path:
@@ -51,91 +61,129 @@ class VideoProcessor:
             self._update_status(None, "processing")
             try:
                 edit_obj = Editor(video_path, gameplay_path, self.config)
+                video_url = edit_obj.start_editing(self.job_id)
             except Exception as es:
-                print(es)
-                self._update_status("error during processing", "failed")
+                logging.error("Error during video editing")
+                self._update_status("Error during video editing", "failed")
                 return 
-            video_url = edit_obj.start_editing(self.job_id)
+            
             if video_url:
                 self._update_status(None, "completed")
             else:
                 self._update_status(None, "failed")
     
     def download_attachment_video(self, url):
-        print(f"Download video with url: {url}")
-        
-        res = requests.get(url)    
-        if res.status_code != 200:
-            print(f"Error downloading video with url: {url}")
-            return
-        
-        file_path = os.path.join(Config.reelsDirectory, self.job_id + ".mp4")
-        with open(file_path, "wb") as file:
-            for chunk in res.iter_content(100000):
-                file.write(chunk)
-        
-        return file_path        
-    
+        logging.info(f"Downloading video from attachment URL: {url}")
+        try:            
+            res = requests.get(url)
+            res.raise_for_status()
+            
+            file_path = os.path.join(Config.reelsDirectory, self.job_id + ".mp4")
+            with open(file_path, "wb") as file:
+                for chunk in res.iter_content(100000):
+                    file.write(chunk)
+            
+            return file_path        
+        except Exception as e:
+            logging.error("Failed to download attachment video")
+            return None
     
     def _tiktok_download(self, url):
-        res = requests.post("https://tikwm.com/api/", data={
-            "url": url,
-            "count": 12,
-            "cursor": 0,
-            "web": 1,
-            "hd": 1
-        })
-        if res.status_code != 200:
-            print(f"Error downloading video with url: {url}")
-            return
-        
-        data = res.json()
-        if not data.get("data"):
-            print(f"Couldn't get tiktok video data url: {url}")
-            return
-        
-        v_url = "https://tikwm.com"
-        
-        video = data["data"]
+        try:           
+            res = requests.post("https://tikwm.com/api/", data={
+                "url": url,
+                "count": 12,
+                "cursor": 0,
+                "web": 1,
+                "hd": 1
+            })
+            res.raise_for_status()
 
-        if video.get("play"):
-            v_url += video["play"]
-        else:
-            print(f"Couldn't get video to download for url: {url}")
-            return
+            data = res.json()
+            video = data.get("data")
+            
+            if not video or not video.get("play"):
+                logging.error(f"Couldn't extract TikTok video: {url}")
+                return None
+            
+            v_url = "https://tikwm.com" + video["play"]
 
-        res = requests.get(v_url)
-        
-        file_path = os.path.join(Config.reelsDirectory, self.job_id + "." + v_url.rsplit(".")[-1])
-        with open(file_path, "wb") as file:
-            for chunk in res.iter_content(100000):
-                file.write(chunk)
-        
-        query_db("UPDATE video_jobs SET caption = ? WHERE id = ?;", video.get("title"), self.job_id)
+            res = requests.get(v_url)
+            res.raise_for_status()
+            
+            file_path = os.path.join(Config.reelsDirectory, f"{self.job_id}.{v_url.rsplit('.')[-1]}")
+            with open(file_path, "wb") as file:
+                for chunk in res.iter_content(102400):
+                    file.write(chunk)
+            
+            query_db("UPDATE video_jobs SET caption = ? WHERE id = ?;", video.get("title"), self.job_id)
+            return file_path   
+        except Exception as e:
+            logging.error("TikTok download failed")
+            return None
+    
+    @staticmethod
+    def normalize_youtube_url(url: str) -> str:
+        if "youtube.com/shorts/" in url:
+            video_id = url.split("/shorts/")[1].split("?")[0]
+            return f"https://www.youtube.com/watch?v={video_id}"
+        return url
 
-        return file_path   
-        
+    def _yt_download(self, url):
+        file_path = os.path.join(Config.reelsDirectory, self.job_id)
+        try:
+            ydl_opts = {
+                'outtmpl': f'{file_path}.%(ext)s',
+                'format': 'best[ext=mp4]',
+                'quiet': True,
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if info.get("description"):
+                    query_db("UPDATE video_jobs SET caption = ? WHERE id = ?;", info["description"], self.job_id)
+                
+                ext = info.get("ext", "mp4")
+                return f"{file_path}.{ext}"
+
+        except Exception as e:
+            logging.error("YouTube download failed")
+            return None
         
     def download_link_video(self, url):
-        print(f"Download video with url: {url}")
-
-        if "tiktok" in self.payload["url"]:
-            return self._tiktok_download(url)
+        logging.info(f"Downloading video from link: {url}")
+        try:
+            if "tiktok" in url:
+                return self._tiktok_download(url)
+            elif "youtube" in url:
+                return self._yt_download(self.normalize_youtube_url(url))
+            else:
+                logging.warning(f"Unsupported video platform for URL: {url}")
+                return None
+        except Exception as e:
+            logging.error("Link download failed")
+            return None
             
     def get_gameplay(self):
-        config_videos = query_db("SELECT gameplay_id FROM config_gameplays WHERE config_id = ?;", self.config["id"])
-        if not config_videos:
-            return 
-        
-        n = randint(0, len(config_videos) - 1)
-        gameplay_id = config_videos[n]["gameplay_id"]
-        
-        # Update the video_job with gameplay id
-        query_db("UPDATE video_jobs SET gameplay_id = ? WHERE id = ?;", gameplay_id, self.job_id)
-        return os.path.join(Config.gameplayDirectory, config_videos[n]["gameplay_id"] + ".mp4")
+        try:        
+            config_videos = query_db("SELECT gameplay_id FROM config_gameplays WHERE config_id = ?;", self.config["id"])
+            if not config_videos:
+                logging.warning("No gameplay videos found for config")
+                return None
+            
+            gameplay_id = config_videos[randint(0, len(config_videos) - 1)]["gameplay_id"]
+            query_db("UPDATE video_jobs SET gameplay_id = ? WHERE id = ?;", gameplay_id, self.job_id)
+            return os.path.join(Config.gameplayDirectory, f"{gameplay_id}.mp4")
+        except Exception as e:
+            logging.error("Failed to fetch gameplay video")
+            return None
     
     def _update_status(self, message, status):
-        if message:
-            query_db("UPDATE video_jobs SET processing_errors = ?, status = ? WHERE id = ?;", message, status, self.job_id)
-        else:
-            query_db("UPDATE video_jobs SET status = ? WHERE id = ?;", status, self.job_id)
+        try:    
+            if message:
+                query_db("UPDATE video_jobs SET processing_errors = ?, status = ? WHERE id = ?;", message, status, self.job_id)
+            else:
+                query_db("UPDATE video_jobs SET status = ? WHERE id = ?;", status, self.job_id)
+            logging.info(f"Job {self.job_id} updated to status '{status}'")
+        except Exception as e:
+            logging.error("Failed to update job status")

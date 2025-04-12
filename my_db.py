@@ -4,7 +4,4 @@ from cs50 import SQL
 db = SQL("sqlite:///autoSplitter.db")
 
 def query_db(*args):
-    try:
-        return db.execute(*args)
-    except Exception as e:
-        print(f"Database error: {e}")
+    return db.execute(*args)

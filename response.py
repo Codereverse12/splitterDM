@@ -4,13 +4,13 @@ def genText(text):
     }
     return response
 
-def genWebUrlButton(title, url):
+def genWebUrlButton(text, url):
     response = {
         "attachment": {
             "type": "template",
             "payload": {
                 "template_type": "button",
-                "text": title,
+                "text": text,
                 "buttons": [
                     {
                         "type": "web_url",

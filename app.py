@@ -440,7 +440,7 @@ def webhook():
     
     # Get the JSON data from the request
     body = request.get_json()
-    print("\033[32mReceived webhook\033[0m")
+    app.logger.info("\033[32mReceived webhook\033[0m")
 
     if body.get("object") == "instagram":
         process_ig_webhook(body)              
@@ -453,12 +453,12 @@ def webhook():
 def process_ig_webhook(body):
     for entry in body.get("entry", []):
         if "messaging" not in entry:
-            print("No messaging field in entry. Possibly a webhook test.")
+            app.logger.info("No messaging field in entry. Possibly a webhook test.")
             return
         for webhookEvent in entry.get("messaging", []):
             # Discard uninteresting events
             if "message" in webhookEvent and webhookEvent["message"].get("is_echo"):
-                print("Got an echo")
+                app.logger.info("Got an echo")
                 return
             
             # Get the sender IGSID
@@ -495,12 +495,12 @@ def process_ig_webhook(body):
                         payload = attachment["payload"]
                         # Instruct a default task to to process the video inside redis if no configuration name arrives in 20     
                         task_obj = default_ig_process.apply_async(args=[senderIgsid, rows[0], payload, user_configs], countdown=Config.countdown)
-                        print(f"task_id: {task_obj.id} will start after 20sec...")
+                        app.logger.info(f"task_id: {task_obj.id} will start after 20sec...")
                         
                         payload["type"] = "attachment"
                         task_data = {"task_id": task_obj.id, "payload": payload, "timestamp": webhookEvent["timestamp"]}
                         # Save the payload inside redis until a configuration name arrives
-                        print(f"Set task_id: {task_obj.id} into redis")
+                        app.logger.info(f"Set task_id: {task_obj.id} into redis")
                         # TODO: need to add key expiration
                         redis_client.set(f"{senderIgsid}_{payload['reel_video_id']}", json.dumps(task_data))
                 
@@ -517,11 +517,11 @@ def process_ig_webhook(body):
                             payload = {"url": link, "type": "link"}
                             # Instruct a default task to to process the video inside redis if no configuration name arrives in 20     
                             task_obj = default_ig_process.apply_async(args=[senderIgsid, rows[0], payload, user_configs], countdown=Config.countdown)
-                            print(f"task_id: {task_obj.id} will start after 20sec...")
+                            app.logger.info(f"task_id: {task_obj.id} will start after 20sec...")
                             
                             task_data = {"task_id": task_obj.id, "payload": payload, "timestamp": webhookEvent["timestamp"]}
                             # Save the payload inside redis until a configuration name arrives
-                            print(f"Set task_id: {task_obj.id} into redis")
+                            app.logger.info(f"Set task_id: {task_obj.id} into redis")
                             # TODO: need to add key expiration
                             redis_client.set(f"{senderIgsid}_{payload['url']}", json.dumps(task_data))
                         else:
@@ -544,10 +544,10 @@ def process_ig_webhook(body):
                         
                         task_obj = default_ig_process.AsyncResult(task_id)
                         task_obj.revoke(terminate=True)
-                        print(f"Task {task_id} revoked.")
+                        app.logger.info(f"Task {task_id} revoked.")
                         
                         # Delete task from redis
-                        print(f"Delete task with id: {current_task.get('task_id')} from redis...")
+                        app.logger.info(f"Delete task with id: {current_task.get('task_id')} from redis...")
                         if current_task["payload"]["type"] == "attachment":
                             redis_client.delete(f"{senderIgsid}_{current_task['payload']['reel_video_id']}")
                         else:
@@ -569,12 +569,12 @@ def default_ig_process(senderIgsid, user, payload, configs):
                 vid_ps.start_process()     
                 return 
     else:
-        print(f"No default configuration for user: {user['email']}")
+        app.logger.info(f"No default configuration for user: {user['email']}")
         send_ig_reply(senderIgsid, f"No default configuration for user: {user['email']}")
             
 @celery.task   
 def ig_process(user, payload, config_name):
-    print(f"{config_name} config processing video url: {payload['url']}")
+    app.logger.info(f"{config_name} config processing video url: {payload['url']}")
     vid_ps = VideoProcessor(user, payload, config_name)
     vid_ps.start_process() 
     

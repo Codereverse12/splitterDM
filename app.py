@@ -290,11 +290,11 @@ def get_output():
     output_videos = query_db(query, session["user_id"], Config.outputPerPage, (page - 1) * Config.outputPerPage)
     return jsonify(output_videos or [])
 
-@app.route("/thumbnail/<string:id>")
+@app.route("/thumbnail/<string:file_name>")
 @login_required
-def thumbnail(id: str):
+def thumbnail(file_name: str):
     """Send video thumbail"""
-    return send_from_directory(Config.thumbnailPath, id)
+    return send_from_directory(Config.thumbnailPath, file_name)
 
 @app.route("/download/<string:id>")
 @login_required

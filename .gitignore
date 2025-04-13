@@ -7,3 +7,5 @@ thumbnail/
 gameplays/
 outputs/
 reels/
+certs/
+.flaskenv

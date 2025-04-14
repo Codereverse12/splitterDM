@@ -494,11 +494,12 @@ def process_ig_webhook(body):
                     attachment = message["attachments"][0]
                     if attachment.get("type") == "ig_reel":
                         payload = attachment["payload"]
+                        payload["type"] = "attachment"
+
                         # Instruct a default task to to process the video inside redis if no configuration name arrives in 20     
                         task_obj = default_ig_process.apply_async(args=[senderIgsid, rows[0], payload, user_configs], countdown=Config.countdown)
                         app.logger.info(f"task_id: {task_obj.id} will start after 20sec...")
                         
-                        payload["type"] = "attachment"
                         task_data = {"task_id": task_obj.id, "payload": payload, "timestamp": webhookEvent["timestamp"]}
                         # Save the payload inside redis until a configuration name arrives
                         app.logger.info(f"Set task_id: {task_obj.id} into redis")

@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
     first_name TEXT NOT NULL,
     last_name TEXT,
     register_date TIMESTAMP NOT NULL,
-    ig_id INTEGER UNIQUE,
+    ig_id BIGINT UNIQUE,
     ig_username TEXT UNIQUE,
     default_config_id TEXT
 );

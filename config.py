@@ -42,3 +42,10 @@ class Config:
     appId = os.environ["IG_APP_ID"]
     appSecret = os.environ["IG_APP_SECRET"]
     verifyToken = os.environ["VERIFY_TOKEN"]
+    
+    # Database configurations
+    dbName = os.environ["DB_DATABASE_NAME"]
+    dbUser = os.environ["DB_USERNAME"]
+    dbPass = os.environ["DB_PASSWORD"]
+    dbHost = os.environ["DB_HOST"]
+    dbPort = os.environ["DB_PORT"]

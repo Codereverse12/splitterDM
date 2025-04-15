@@ -470,7 +470,7 @@ def process_ig_webhook(body):
                 graph_api = GraphApi()
                 user_profile = graph_api.getUserProfile(senderIgsid)
                 if user_profile and "username" in user_profile:
-                    update_count = fetch(
+                    update_count = update(
                         "UPDATE users SET ig_id = %s WHERE ig_username = %s;",
                         args=(senderIgsid, user_profile["username"].lower())
                     )

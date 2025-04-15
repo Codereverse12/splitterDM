@@ -30,7 +30,7 @@ packaging==24.2
 pillow==10.4.0
 proglog==0.1.11
 prompt_toolkit==3.0.50
-psycopg2==2.9.10
+psycopg2-binary==2.9.10
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.0
 pytube==15.0.0

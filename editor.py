@@ -65,7 +65,7 @@ class Editor:
                 fps=60,
                 bitrate="15M",
                 preset="slow", # Slower encoding for higher quality
-                threads=4
+                temp_audiofile=False
             )    
             return output_path
         

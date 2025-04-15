@@ -1,11 +1,10 @@
 import os
-from flask import Flask, render_template, request, url_for, session, redirect, flash, jsonify, send_from_directory, abort
+from flask import Flask, render_template, request, url_for, session, redirect, flash, jsonify, send_from_directory, abort, g
 from flask_session import Session
 from config import Config
 import secrets
 import requests
 from urllib.parse import urlencode
-from my_db import query_db
 import datetime
 from helpers import login_required, verify_signature, is_valid_input, instagram_username, is_video_link
 from config_celery import celery_init_app
@@ -17,6 +16,8 @@ import json
 from graph_api import GraphApi
 from video_processor import VideoProcessor
 from werkzeug.middleware.proxy_fix import ProxyFix
+from db_pool import conn_pool
+from db_app import fetch, update
 
 app = Flask(__name__)
 
@@ -42,7 +43,7 @@ def index():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    rows = query_db("""
+    rows = fetch("""
         SELECT
             vc.id,
             vc.config_name,
@@ -61,22 +62,21 @@ def dashboard():
             users u 
         ON u.id = vc.user_id 
         WHERE 
-            vc.user_id = ? 
+            vc.user_id = %s 
         ORDER BY 
-            created_at DESC;""", session["user_id"])
-    if not rows:
-        rows = []
+            created_at DESC;""", args=(session["user_id"],))
+ 
     return render_template("dashboard.html", configs=rows)
 
 @app.route('/config/<string:id>')
 @login_required
 def config(id: str):
-    rows = query_db("SELECT * FROM video_configurations WHERE id = ? AND user_id = ? ;", id, session["user_id"])
+    rows = fetch("SELECT * FROM video_configurations WHERE id = %s AND user_id = %s ;", args=(id, session["user_id"]))
     if not rows:
         flash("Invalid configuration", "danger")
         return redirect(url_for("dashboard"))
 
-    gameplays = query_db("SELECT g.title, g.category FROM config_gameplays cg JOIN gameplays g ON cg.gameplay_id = g.id WHERE cg.config_id = ?;", id)
+    gameplays = fetch("SELECT g.title, g.category FROM config_gameplays cg JOIN gameplays g ON cg.gameplay_id = g.id WHERE cg.config_id = %s;", args=(id,))
     return render_template("config.html", config=rows[0], gameplays=gameplays)
 
 @app.route("/default-config", methods=["POST"])
@@ -92,15 +92,11 @@ def default_config():
         UPDATE 
             Users 
         SET 
-            default_config_id = ? WHERE id = ? AND EXISTS (SELECT * FROM video_configurations WHERE user_id = ? AND id = ?);
+            default_config_id = %s WHERE id = %s AND EXISTS (SELECT * FROM video_configurations WHERE user_id = %s AND id = %s);
     """
     new_config_id = configId if state == "set" else None
-    is_updated = query_db(query, new_config_id,  session["user_id"], session["user_id"], configId)
-    if is_updated:
-        flash("Config successfully updated", "success")
-    else:
-        flash("Error setting default configuration", "danger")
-    
+    update(query, args=(new_config_id,  session["user_id"], session["user_id"], configId))
+    flash("Config successfully updated", "success")
     return redirect(url_for("dashboard"))
 
 @app.route("/new-config", methods=["GET", "POST"])
@@ -117,7 +113,7 @@ def new_config():
     
     # Check if config name exists
     config_name = request.form["configName"].lower().strip()
-    rows = query_db("SELECT * FROM video_configurations WHERE config_name = ? AND user_id = ?;", config_name, session["user_id"])
+    rows = fetch("SELECT * FROM video_configurations WHERE config_name = %s AND user_id = %s;", args=(config_name, session["user_id"]))
     if rows:
         flash(f"config name '{config_name}' already exists", "danger")
         return redirect(url_for("new_config"))
@@ -125,8 +121,8 @@ def new_config():
     configId = str(uuid4())
     
     if not request.form.get("splitType"):
-        query_db("INSERT INTO video_configurations (id, user_id, config_name, created_at) VALUES (?, ?, ?, ?);", 
-            configId, session["user_id"], config_name, datetime.datetime.now()
+        update("INSERT INTO video_configurations (id, user_id, config_name, created_at) VALUES (%s, %s, %s, %s);", 
+            args=(configId, session["user_id"], config_name, datetime.datetime.now())
         )   
         flash("Successfully registered", "success")
         return redirect(url_for("dashboard"))
@@ -179,17 +175,13 @@ def new_config():
     if process_option not in ["crop", "fit"]:
         flash("must provide a valid processing option", "danger")
         return redirect(url_for("new_config"))
-    
-    query_db("BEGIN TRANSACTION")  
-      
-    query_db("INSERT INTO video_configurations (id, user_id, config_name, split_type, video_position, original_video_percentage, edit_type, created_at) VALUES (?, ?, ?, ? , ?, ?, ?, ?);", 
-        configId, session["user_id"], config_name, splitType, videoPosition, videoPercentage, process_option, datetime.datetime.now()
+          
+    update("INSERT INTO video_configurations (id, user_id, config_name, split_type, video_position, original_video_percentage, edit_type, created_at) VALUES (%s, %s, %s, %s , %s, %s, %s, %s);", 
+        args=(configId, session["user_id"], config_name, splitType, videoPosition, videoPercentage, process_option, datetime.datetime.now())
     )
     for v_id in request.form.getlist("gameplay"):
-        query_db("INSERT INTO config_gameplays (config_id, gameplay_id) VALUES (?, ?);", configId, v_id)
-        
-    query_db("COMMIT")
-    
+        update("INSERT INTO config_gameplays (config_id, gameplay_id) VALUES (%s, %s);", args=(configId, v_id))
+            
     flash("Successfully registered", "success")
     return redirect(url_for("dashboard"))
         
@@ -197,9 +189,9 @@ def new_config():
 @login_required
 def delete_config():
     config_id = request.form.get("configId")
-    rows = query_db("DELETE FROM video_configurations WHERE id = ? AND user_id = ?;", config_id, session["user_id"])
-    if rows:
-        query_db("UPDATE users SET default_config_id = ? WHERE id = ? AND default_config_id = ?;", None, session["user_id"], config_id)
+    row_count = update("DELETE FROM video_configurations WHERE id = %s AND user_id = %s;", args=(config_id, session["user_id"]))
+    if row_count:
+        update("UPDATE users SET default_config_id = %s WHERE id = %s AND default_config_id = %s;", args=(None, session["user_id"], config_id))
         flash("Successfully deleted!", "success")
     else:
         flash("Couldn't delete, try again", "danger")
@@ -210,7 +202,7 @@ def delete_config():
 @login_required
 def settings():
     if request.method == "GET":
-        row = query_db("SELECT ig_username FROM users WHERE id = ?;", session["user_id"])
+        row = fetch("SELECT ig_username FROM users WHERE id = %s;", args=(session["user_id"],))
         username = row[0].get("ig_username")
         return render_template("settings.html", ig_username=username)
     
@@ -225,12 +217,8 @@ def settings():
         flash("instagram username must be valid", "danger")
         return redirect(url_for("settings"))
     
-    update_row = query_db("UPDATE users SET ig_username = ?, ig_id = ? WHERE id = ?;", igUsername, None, session["user_id"])
-    if update_row:
-        flash("Successfully saved IG username", "success")
-    else:
-        flash("Couldn't save ig_username", "danger")
-    
+    update("UPDATE users SET ig_username = %s, ig_id = %s WHERE id = %s;", args=(igUsername, None, session["user_id"]))
+    flash("Successfully saved IG username", "success")
     return redirect(url_for("settings"))
         
 @app.route("/progress")
@@ -251,12 +239,12 @@ def progress():
     LEFT JOIN 
         gameplays g ON vj.gameplay_id = g.id 
     WHERE
-        vj.user_id = ?
+        vj.user_id = %s
     ORDER BY 
         vj.created_at DESC;
     """
-    rows = query_db(query, session["user_id"])
-    return render_template("progress.html", processes=(rows or []))
+    rows = fetch(query, args=(session["user_id"],))
+    return render_template("progress.html", processes=rows)
 
 @app.route("/output")
 @login_required
@@ -268,7 +256,7 @@ def output():
 def explore():
     """Explore gameplays videos"""
     page = request.args.get("page", 1, type=int)
-    gameplays = query_db("SELECT * FROM gameplays LIMIT ? OFFSET ?;", Config.gameplayPerPage, (page - 1) * Config.gameplayPerPage)
+    gameplays = fetch("SELECT * FROM gameplays LIMIT %s OFFSET %s;", args=(Config.gameplayPerPage, (page - 1) * Config.gameplayPerPage))
     return jsonify(gameplays or [])
 
 @app.route("/output", methods=["POST"])
@@ -282,15 +270,15 @@ def get_output():
     FROM 
         video_jobs vj 
     WHERE
-        vj.user_id = ? AND vj.status = 'completed'
+        vj.user_id = %s AND vj.status = 'completed'
     ORDER BY 
         vj.created_at DESC
     LIMIT
-        ? 
-    OFFSET ?;
+        %s
+    OFFSET %s;
     """
     page = request.form.get("page", 1, type=int)
-    output_videos = query_db(query, session["user_id"], Config.outputPerPage, (page - 1) * Config.outputPerPage)
+    output_videos = fetch(query, args=(session["user_id"], Config.outputPerPage, (page - 1) * Config.outputPerPage))
     return jsonify(output_videos or [])
 
 @app.route("/thumbnail/<string:file_name>")
@@ -310,11 +298,11 @@ def download(id: str):
     FROM 
         video_jobs vj 
     WHERE
-        vj.user_id = ? AND vj.status = 'completed' AND vj.id = ?;
+        vj.user_id = %s AND vj.status = 'completed' AND vj.id = %s;
     """
-    rows = query_db(query, session["user_id"], id)
+    rows = fetch(query, args=(session["user_id"], id))
     if not rows:
-        abort(404, "Video not found")
+        abort(404)
 
    # Ensure the file exists on disk
     video_path = os.path.join(Config.outputDirectory, id + ".mp4")
@@ -323,8 +311,7 @@ def download(id: str):
     
     as_attachment = request.args.get("attachment", "false").lower() == "true"
     return send_from_directory(Config.outputDirectory, id + ".mp4",as_attachment=as_attachment, mimetype="video/mp4")
-
-    
+  
 @app.route("/authorize")
 def oauth2_authorize():
     """Redirect to Google auth screen"""
@@ -400,13 +387,14 @@ def oauth2_callback():
     user_profile = response.json()
     
     # find or create the user in the database
-    rows = query_db("SELECT * FROM Users WHERE email = ?;", user_profile["email"])
+    rows = fetch("SELECT * FROM Users WHERE email = %s;", args=(user_profile["email"],))
     if len(rows) == 0:
-        user_id = query_db("INSERT INTO Users (email, first_name, last_name, register_date) VALUES (?, ?, ?, ?);",
-            user_profile["email"],
-            user_profile.get("given_name"),
-            user_profile.get("family_name"),
-            datetime.datetime.now()
+        user_id = update("INSERT INTO Users (email, first_name, last_name, register_date) VALUES (%s, %s, %s, %s);", args=(
+                user_profile["email"],
+                user_profile.get("given_name"),
+                user_profile.get("family_name"),
+                datetime.datetime.now()
+            )
         )
         session["user_id"] = user_id
     else:
@@ -450,7 +438,20 @@ def webhook():
     # Return a '404 Not Found' if event is not recognized
     return "unrecognized POST to webhook", 404
 
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'), 404
 
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('500.html'), 500
+
+@app.teardown_request
+def return_db_connection(exception=None):
+    db_conn = g.pop('db_conn', None)
+    if db_conn:
+        conn_pool.putconn(db_conn)
+        
 def process_ig_webhook(body):
     for entry in body.get("entry", []):
         if "messaging" not in entry:
@@ -464,25 +465,24 @@ def process_ig_webhook(body):
             
             # Get the sender IGSID
             senderIgsid = webhookEvent["sender"]["id"]
-            rows = query_db("SELECT * FROM users WHERE ig_id = ?;", senderIgsid)
+            rows = fetch("SELECT * FROM users WHERE ig_id = %s;", args=(senderIgsid,))
             if not rows:
                 graph_api = GraphApi()
                 user_profile = graph_api.getUserProfile(senderIgsid)
                 if user_profile and "username" in user_profile:
-                    update_count = query_db(
-                        "UPDATE users SET ig_id = ? WHERE ig_username = ?;",
-                        senderIgsid,
-                        user_profile["username"].lower()
+                    update_count = fetch(
+                        "UPDATE users SET ig_id = %s WHERE ig_username = %s;",
+                        args=(senderIgsid, user_profile["username"].lower())
                     )
                     if update_count:
-                        rows = query_db("SELECT * FROM users WHERE ig_id = ?;", senderIgsid)
+                        rows = fetch("SELECT * FROM users WHERE ig_id = %s;", args=(senderIgsid,))
                     else:
                         send_ig_reply(senderIgsid, "Signup to autosplit!")
                         return 
                 else:
                     return 
             
-            user_configs = query_db("SELECT * FROM video_configurations WHERE user_id = ?;", rows[0]["id"])
+            user_configs = fetch("SELECT * FROM video_configurations WHERE user_id = %s;", args=(rows[0]["id"],))
             if not user_configs:
                 send_ig_reply(senderIgsid, "No video configurations found. Set up a new one now to customize your video edits")
                 return 

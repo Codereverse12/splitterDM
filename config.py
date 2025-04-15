@@ -49,3 +49,5 @@ class Config:
     dbPass = os.environ["DB_PASSWORD"]
     dbHost = os.environ["DB_HOST"]
     dbPort = os.environ["DB_PORT"]
+    dbMinConn = 1
+    dbMaxConn = 20

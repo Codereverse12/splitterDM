@@ -37,11 +37,13 @@ class VideoProcessor:
                 self.db.update("INSERT INTO video_jobs (id, user_id, video_url, config_id, created_at) VALUES (%s, %s, %s, %s, %s);", args=(self.job_id, self.user["id"], video_url, self.config['id'], datetime.datetime.now()))
                 video_path = self.download_link_video(video_url)
         except Exception as e:
+            self.db.put_connection()
             logging.error("job creation error")
             return
 
         if not video_path:
             self._update_status("Failed to download video", "failed")
+            self.db.put_connection()
             return
         
         self._update_status(None, "downloaded")
@@ -56,6 +58,7 @@ class VideoProcessor:
             gameplay_path = self.get_gameplay()
             if not gameplay_path:
                 self._update_status("Couldn't get gameplay video", "failed")
+                self.db.put_connection()
                 return 
             
             self._update_status(None, "processing")
@@ -65,13 +68,17 @@ class VideoProcessor:
             except Exception as es:
                 logging.error("Error during video editing")
                 self._update_status("Error during video editing", "failed")
+                self.db.put_connection()
                 return 
             
             if video_url:
                 self._update_status(None, "completed")
             else:
                 self._update_status(None, "failed")
-    
+
+        # Put connection back
+        self.db.put_connection()
+        
     def download_attachment_video(self, url):
         logging.info(f"Downloading video from attachment URL: {url}")
         try:            

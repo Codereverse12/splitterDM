@@ -18,6 +18,7 @@ class db:
         """Put a connection from pool"""
         if self.conn:
             conn_pool.putconn(self.conn)
+            self.conn = None
 
     def execute(self, query, args=(), commit=False):
         """Execute SQL query and return cursor"""

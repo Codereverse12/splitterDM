@@ -37,7 +37,7 @@ class VideoProcessor:
                 self.db.update("INSERT INTO video_jobs (id, user_id, video_url, config_id, created_at) VALUES (%s, %s, %s, %s, %s);", args=(self.job_id, self.user["id"], video_url, self.config['id'], datetime.datetime.now()))
                 video_path = self.download_link_video(video_url)
         except Exception as e:
-            self._update_status("database or download error", "failed")
+            logging.error("job creation error")
             return
 
         if not video_path:

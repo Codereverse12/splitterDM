@@ -81,6 +81,8 @@ def is_video_link(text):
         (youtube\.com\/shorts\/[a-zA-Z0-9_-]{11})      # YouTube Shorts
         |                                              # OR
         (vm\.tiktok\.com\/[a-zA-Z0-9_-]+)            # TikTok links
+        |
+        (tiktok\.com\/@[\w.-]+\/video\/\d+)            # Full TikTok video links
     )
     (\/)?                                              # Optional trailing slash
     """, re.VERBOSE)

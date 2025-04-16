@@ -11,7 +11,7 @@ class Editor:
     def __init__(self, video_path, gameplay_path, config) -> None:
         try:
             self.main_video = VideoFileClip(video_path)
-            self.gameplay_video = VideoFileClip(gameplay_path)
+            self.gameplay_video = VideoFileClip(gameplay_path).without_audio()
         except OSError as e:
             logging.error(f"Failed to load video files: {e}")
             raise
@@ -37,7 +37,7 @@ class Editor:
             if self.gameplay_video.duration > duration:
                 self.gameplay_video = self.gameplay_video.subclipped(0, duration)
             else:
-                self.gameplay_video = self.gameplay_video.with_effects([vfx.Loop(duration=duration)]).without_audio()
+                self.gameplay_video = self.gameplay_video.with_effects([vfx.Loop(duration=duration)])
                 
             if self.config["split_type"] == "vertical":
                 if self.config["edit_type"] == "fit":

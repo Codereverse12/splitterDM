@@ -387,14 +387,14 @@ def oauth2_callback():
     user_profile = response.json()
     
     # find or create the user in the database
-    rows = fetch("SELECT * FROM Users WHERE email = %s;", args=(user_profile["email"],))
+    rows = fetch("SELECT * FROM users WHERE email = %s;", args=(user_profile["email"],))
     if len(rows) == 0:
-        user_id = update("INSERT INTO Users (email, first_name, last_name, register_date) VALUES (%s, %s, %s, %s);", args=(
+        user_id = update("INSERT INTO users (email, first_name, last_name, register_date) VALUES (%s, %s, %s, %s) RETURNING id;", args=(
                 user_profile["email"],
                 user_profile.get("given_name"),
                 user_profile.get("family_name"),
                 datetime.datetime.now()
-            )
+            ), returns=True
         )
         session["user_id"] = user_id
     else:

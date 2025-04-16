@@ -29,7 +29,10 @@ def fetch(query, args=(), one=False):
         results = [dict(zip(columns, row)) for row in cur.fetchall()]
         return results[0] if (one and results) else results
 
-def update(query, args=()):
+def update(query, args=(), returns=False):
     """Update or Delete or Insert records"""
     with execute(query, args, commit=True) as cur:
-        return cur.rowcount
+        if returns:
+            return cur.fetchone()[0]
+        else:
+            return cur.rowcount
